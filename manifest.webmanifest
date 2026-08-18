@@ -1,0 +1,23 @@
+{
+  "name": "Magazyn — artykuły biurowe i wyposażenie",
+  "short_name": "Magazyn",
+  "description": "Dostawy, wydania na punkty, ewidencja sprzętu w pomieszczeniach, skaner kodów i eksport do Excela.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f4f7",
+  "theme_color": "#2f5597",
+  "lang": "pl",
+  "dir": "ltr",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nowe wydanie", "short_name": "Wydanie", "url": "./#/dokument/nowy/RW" },
+    { "name": "Nowa dostawa", "short_name": "Dostawa", "url": "./#/dokument/nowy/PZ" },
+    { "name": "Skanuj kod", "short_name": "Skanuj", "url": "./#/skanuj" }
+  ]
+}
