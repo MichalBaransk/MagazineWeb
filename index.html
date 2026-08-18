@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6feb">
+<title>Test możliwości – aplikacja magazynowa</title>
+<style>
+:root{
+  --bg:#0f1115; --card:#181b22; --card2:#1f232c; --line:#2c313c;
+  --tx:#e6e9ef; --tx2:#98a1b3; --acc:#4c8dff;
+  --ok:#2ea043; --bad:#e5534b; --warn:#d29922; --pend:#565e6d;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f4f5f7; --card:#fff; --card2:#f0f2f5; --line:#dfe3e9;
+         --tx:#171a1f; --tx2:#5b6472; --acc:#1f6feb; --pend:#aeb6c2; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:0 0 env(safe-area-inset-bottom)}
+header{padding:20px 16px 16px;background:linear-gradient(160deg,var(--acc),#7b4cff);color:#fff}
+header h1{margin:0 0 4px;font-size:20px;font-weight:650;letter-spacing:-.2px}
+header p{margin:0;font-size:13px;opacity:.9}
+main{padding:12px 12px 40px;max-width:640px;margin:0 auto}
+
+#verdict{margin:12px 0 16px;padding:14px 16px;border-radius:14px;
+  background:var(--card);border:1px solid var(--line)}
+#verdict .big{font-size:17px;font-weight:650;margin-bottom:2px}
+#verdict .sub{font-size:13px;color:var(--tx2)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:14px;margin-bottom:10px}
+.card h2{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:9px}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--pend);flex:none;
+  transition:background .2s}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+.dot.warn{background:var(--warn)}
+.num{font-size:12px;color:var(--tx2);font-variant-numeric:tabular-nums;
+  min-width:20px;flex:none}
+.det{font-size:13.5px;color:var(--tx2);margin-top:8px;white-space:pre-wrap;
+  word-break:break-word}
+.det b{color:var(--tx);font-weight:600}
+button{appearance:none;border:0;border-radius:10px;background:var(--acc);color:#fff;
+  font:inherit;font-size:14px;font-weight:600;padding:11px 16px;margin-top:11px;
+  cursor:pointer;width:100%}
+button.sec{background:var(--card2);color:var(--tx);border:1px solid var(--line)}
+button:active{opacity:.75}
+button:disabled{opacity:.45}
+video{width:100%;border-radius:10px;margin-top:11px;background:#000;display:none;
+  max-height:52vh;object-fit:cover}
+video.on{display:block}
+#hit{margin-top:10px;padding:12px;border-radius:10px;background:#0d3320;
+  border:1px solid var(--ok);display:none;font-size:14px}
+#hit.on{display:block}
+#hit code{font-size:19px;font-weight:700;color:#3fb950;
+  font-family:ui-monospace,monospace;word-break:break-all}
+.foot{font-size:12px;color:var(--tx2);text-align:center;margin-top:22px;line-height:1.7}
+pre#raport{white-space:pre-wrap;font-size:11.5px;background:var(--card2);
+  border:1px solid var(--line);border-radius:10px;padding:11px;margin-top:11px;
+  color:var(--tx2);display:none;font-family:ui-monospace,monospace}
+pre#raport.on{display:block}
+</style>
+</head>
+<body>
+<header>
+  <h1>Test możliwości urządzenia</h1>
+  <p>Sprawdza, czy aplikacja magazynowa (PWA) zadziała na tym telefonie i w tym profilu Androida.</p>
+</header>
+
+<main>
+<div id="verdict">
+  <div class="big" id="vTitle">Trwa sprawdzanie…</div>
+  <div class="sub" id="vSub">Uruchom testy 4, 5 i 8 – wymagają Twojego potwierdzenia.</div>
+</div>
+
+<div class="card" id="c1">
+  <h2><span class="num">1</span><span class="dot"></span>Bezpieczne połączenie</h2>
+  <div class="det"></div>
+</div>
+
+<div class="card" id="c2">
+  <h2><span class="num">2</span><span class="dot"></span>Przeglądarka i urządzenie</h2>
+  <div class="det"></div>
+</div>
+
+<div class="card" id="c3">
+  <h2><span class="num">3</span><span class="dot"></span>Instalacja na ekranie głównym</h2>
+  <div class="det"></div>
+  <button id="bInstall" class="sec">Zainstaluj aplikację</button>
+</div>
+
+<div class="card" id="c4">
+  <h2><span class="num">4</span><span class="dot"></span>Dostęp do aparatu</h2>
+  <div class="det">Najważniejszy test. Polityka firmowa (MDM) potrafi zablokować aparat dla stron.</div>
+  <button id="bCam">Włącz aparat</button>
+</div>
+
+<div class="card" id="c5">
+  <h2><span class="num">5</span><span class="dot"></span>Skaner kodów kreskowych</h2>
+  <div class="det"></div>
+  <video id="vid" playsinline muted></video>
+  <div id="hit">Odczytano kod:<br><code id="hitCode"></code><br><span id="hitFmt" style="font-size:12px;color:var(--tx2)"></span></div>
+  <button id="bScan" disabled>Skanuj kod (najpierw włącz aparat)</button>
+</div>
+
+<div class="card" id="c6">
+  <h2><span class="num">6</span><span class="dot"></span>Baza danych w telefonie</h2>
+  <div class="det"></div>
+</div>
+
+<div class="card" id="c7">
+  <h2><span class="num">7</span><span class="dot"></span>Trwałość danych i miejsce</h2>
+  <div class="det"></div>
+  <button id="bPersist" class="sec">Poproś o trwały magazyn</button>
+</div>
+
+<div class="card" id="c8">
+  <h2><span class="num">8</span><span class="dot"></span>Wysyłka pliku Excel mailem</h2>
+  <div class="det">Sprawdza, czy da się wysłać wygenerowany plik .xlsx przez Gmail/Outlook.</div>
+  <button id="bShare">Udostępnij testowy plik Excel</button>
+  <button id="bDl" class="sec">Albo pobierz go do Plików</button>
+</div>
+
+<div class="card" id="c9">
+  <h2><span class="num">9</span><span class="dot"></span>Praca offline</h2>
+  <div class="det"></div>
+</div>
+
+<div class="card" id="c10">
+  <h2><span class="num">10</span><span class="dot"></span>Dostęp do bibliotek w sieci</h2>
+  <div class="det">Sprawdzanie…</div>
+</div>
+
+<button id="bRaport" class="sec" style="margin-top:18px">Pokaż raport do skopiowania</button>
+<pre id="raport"></pre>
+<button id="bShareRaport" class="sec" style="display:none">Wyślij raport</button>
+
+<div class="foot">
+  Strona nie wysyła nigdzie żadnych danych.<br>Wszystko dzieje się w Twojej przeglądarce.
+</div>
+</main>
+
+<script>
+const XLSX_B64 = "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";
+const R = {};                       // wyniki do raportu
+const $  = s => document.querySelector(s);
+const el = id => document.getElementById(id);
+
+function set(id, state, text, key){
+  const c = el(id);
+  c.querySelector('.dot').className = 'dot ' + state;
+  if (text !== undefined) c.querySelector('.det').innerHTML = text;
+  if (key) R[key] = {stan:state, opis:c.querySelector('.det').textContent.trim()};
+  odswiezWerdykt();
+}
+
+const KRYTYCZNE = ['bezpieczne','aparat','skaner','baza'];
+function odswiezWerdykt(){
+  const zle  = KRYTYCZNE.filter(k => R[k]?.stan === 'bad');
+  const brak = KRYTYCZNE.filter(k => !R[k]);
+  if (zle.length){
+    el('vTitle').textContent = 'Coś nie zadziała';
+    el('vTitle').style.color = 'var(--bad)';
+    el('vSub').textContent = 'Problem: ' + zle.join(', ') + '. Szczegóły w kartach poniżej.';
+  } else if (brak.length){
+    el('vTitle').textContent = 'Testy w toku';
+    el('vTitle').style.color = '';
+    el('vSub').textContent = 'Zostało do uruchomienia ręcznie: ' + brak.join(', ') + '.';
+  } else {
+    el('vTitle').textContent = 'Wszystko działa — można budować';
+    el('vTitle').style.color = 'var(--ok)';
+    el('vSub').textContent = 'Aparat, skaner i baza danych są dostępne w tym profilu.';
+  }
+}
+
+/* 1 — bezpieczny kontekst */
+(function(){
+  const p = location.protocol;
+  if (window.isSecureContext){
+    set('c1','ok','Połączenie: <b>' + p + '</b> — bezpieczne.\nAparat i baza danych są dozwolone.','bezpieczne');
+  } else {
+    set('c1','bad','Połączenie: <b>' + p + '</b> — <b>niebezpieczne</b>.\n' +
+      'Przeglądarka zablokuje aparat i zapis danych.\n' +
+      'Ta strona musi być otwarta przez adres https://, a nie z pliku na dysku.','bezpieczne');
+  }
+})();
+
+/* 2 — przeglądarka */
+(function(){
+  const ua = navigator.userAgent;
+  const chrome = (ua.match(/Chrome\/(\d+)/) || [])[1];
+  const android = (ua.match(/Android (\d+)/) || [])[1];
+  let t = 'Chrome: <b>' + (chrome || 'nie wykryto') + '</b>\n' +
+          'Android: <b>' + (android || 'nie wykryto') + '</b>\n' +
+          'Ekran: <b>' + screen.width + '×' + screen.height + '</b>\n' +
+          'Rdzenie: <b>' + (navigator.hardwareConcurrency || '?') + '</b>, ' +
+          'pamięć: <b>' + (navigator.deviceMemory ? navigator.deviceMemory + ' GB' : '?') + '</b>';
+  let stan = 'ok';
+  if (chrome && +chrome < 100){ stan = 'warn'; t += '\n\nStara wersja Chrome — warto zaktualizować.'; }
+  if (!chrome){ stan = 'warn'; t += '\n\nTo nie wygląda na Chrome. Test wykonaj w Chrome.'; }
+  set('c2', stan, t, 'przegladarka');
+})();
+
+/* 3 — instalacja */
+let deferredPrompt = null;
+(function(){
+  const standalone = matchMedia('(display-mode: standalone)').matches ||
+                     matchMedia('(display-mode: fullscreen)').matches ||
+                     navigator.standalone === true;
+  if (standalone){
+    set('c3','ok','Strona działa <b>jako zainstalowana aplikacja</b> (bez paska adresu).\nInstalacja w tym profilu jest możliwa.','instalacja');
+    el('bInstall').style.display = 'none';
+  } else {
+    set('c3','warn','Działa w zwykłej karcie przeglądarki.\n' +
+      'Kliknij przycisk poniżej, a jeśli nic się nie stanie — użyj menu Chrome (⋮) → ' +
+      '<b>Dodaj do ekranu głównego</b>, a potem otwórz aplikację z nowej ikony.','instalacja');
+  }
+  addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); deferredPrompt = e;
+    if (!standalone) set('c3','ok','Chrome potwierdza, że stronę <b>można zainstalować</b>.\n' +
+      'Kliknij przycisk poniżej.','instalacja');
+  });
+  el('bInstall').onclick = async () => {
+    if (deferredPrompt){
+      deferredPrompt.prompt();
+      const r = await deferredPrompt.userChoice;
+      set('c3', r.outcome === 'accepted' ? 'ok':'warn',
+        'Wynik okna instalacji: <b>' + r.outcome + '</b>','instalacja');
+      deferredPrompt = null;
+    } else {
+      set('c3','warn','Chrome nie zaproponował instalacji automatycznie.\n' +
+        'Użyj menu Chrome (⋮) → <b>Dodaj do ekranu głównego</b>, ' +
+        'a potem otwórz aplikację z nowej ikony i sprawdź, czy nie ma paska adresu.','instalacja');
+    }
+  };
+})();
+
+/* 4 — aparat */
+let stream = null;
+el('bCam').onclick = async () => {
+  el('bCam').disabled = true;
+  el('bCam').textContent = 'Proszę o dostęp…';
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+    });
+    const v = el('vid'); v.srcObject = stream; v.className = 'on'; await v.play();
+    const tr = stream.getVideoTracks()[0], s = tr.getSettings();
+    const kamery = (await navigator.mediaDevices.enumerateDevices())
+                    .filter(d => d.kind === 'videoinput').length;
+    set('c4','ok','Aparat <b>działa</b>.\nUżyty: <b>' + (tr.label || 'bez nazwy') + '</b>\n' +
+      'Rozdzielczość: <b>' + s.width + '×' + s.height + '</b>\nDostępnych kamer: <b>' + kamery + '</b>','aparat');
+    el('bCam').textContent = 'Wyłącz aparat';
+    el('bCam').onclick = () => { stopCam(); };
+    el('bScan').disabled = false;
+    el('bScan').textContent = 'Skanuj kod';
+  } catch(e){
+    const powod = {
+      NotAllowedError: 'Odmowa dostępu. Albo kliknąłeś „Zablokuj”, albo <b>blokuje to polityka firmowa (MDM)</b>. Sprawdź: kłódka przy adresie → Uprawnienia → Aparat.',
+      NotFoundError: 'Nie znaleziono aparatu.',
+      NotReadableError: 'Aparat zajęty przez inną aplikację. Zamknij ją i spróbuj ponownie.',
+      SecurityError: 'Zablokowane z powodu niebezpiecznego połączenia (patrz test 1).'
+    }[e.name] || e.message;
+    set('c4','bad','<b>' + e.name + '</b>\n' + powod,'aparat');
+    el('bCam').textContent = 'Spróbuj ponownie';
+  }
+  el('bCam').disabled = false;
+};
+function stopCam(){
+  if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  el('vid').className = ''; skanuj = false;
+  el('bScan').disabled = true;
+}
+
+/* 5 — skaner */
+let detektor = null, skanuj = false;
+(async function(){
+  if (!('BarcodeDetector' in window)){
+    set('c5','warn','Wbudowany czytnik kodów <b>niedostępny</b> w tej przeglądarce.\n' +
+      'Aplikacja użyje wtedy zapasowego dekodera w JavaScript — wolniejszego, ale działającego.','skaner');
+    return;
+  }
+  try {
+    const f = await BarcodeDetector.getSupportedFormats();
+    const chce = ['ean_13','ean_8','code_128','code_39','qr_code','data_matrix'];
+    const ma = chce.filter(x => f.includes(x));
+    detektor = new BarcodeDetector({ formats: ma });
+    set('c5', ma.length >= 4 ? 'ok':'warn',
+      'Wbudowany czytnik kodów <b>dostępny</b>.\nObsługiwane potrzebne formaty: <b>' +
+      ma.join(', ') + '</b>\n\nWłącz aparat (test 4), potem kliknij „Skanuj kod” i przyłóż ' +
+      'dowolny kod kreskowy — np. z ryzy papieru albo butelki wody.','skaner');
+  } catch(e){
+    set('c5','bad','Czytnik zgłosił błąd: ' + e.message,'skaner');
+  }
+})();
+
+el('bScan').onclick = () => {
+  if (skanuj){ skanuj = false; el('bScan').textContent = 'Skanuj kod'; return; }
+  if (!detektor){ alert('Wbudowany czytnik niedostępny — w aplikacji zadziała dekoder zapasowy.'); return; }
+  skanuj = true; el('bScan').textContent = 'Zatrzymaj skanowanie';
+  const v = el('vid');
+  let ostatni = 0;
+  (async function petla(){
+    if (!skanuj || !stream) return;
+    const t = performance.now();
+    if (t - ostatni > 120){
+      ostatni = t;
+      try {
+        const kody = await detektor.detect(v);
+        if (kody.length){
+          const k = kody[0];
+          el('hitCode').textContent = k.rawValue;
+          el('hitFmt').textContent = 'format: ' + k.format + ' · ' + new Date().toLocaleTimeString('pl-PL');
+          el('hit').className = 'on';
+          if (navigator.vibrate) navigator.vibrate(60);
+          R.skaner = {stan:'ok', opis:'Odczytano kod ' + k.rawValue + ' (' + k.format + ')'};
+          el('c5').querySelector('.dot').className = 'dot ok';
+          odswiezWerdykt();
+        }
+      } catch(e){}
+    }
+    requestAnimationFrame(petla);
+  })();
+};
+
+/* 6 — IndexedDB */
+(function(){
+  let req;
+  try { req = indexedDB.open('test-magazyn', 1); }
+  catch(err){
+    set('c6','bad','Baza danych <b>zablokowana</b>: ' + err.message + '\n' +
+      'Najczęstsza przyczyna: strona otwarta z pliku na dysku zamiast przez https (patrz test 1).','baza');
+    return;
+  }
+  req.onupgradeneeded = e => e.target.result.createObjectStore('poz', {keyPath:'id'});
+  req.onerror = () => set('c6','bad','Nie udało się otworzyć bazy danych.\n' +
+    'Możliwa przyczyna: tryb incognito albo blokada plików cookie i danych stron.','baza');
+  req.onsuccess = e => {
+    const db = e.target.result;
+    const rekord = {id:'test-1', nazwa:'Papier A4 80g', ean:'5901234567890',
+                    ilosc:25, kiedy:new Date().toISOString()};
+    const tx = db.transaction('poz','readwrite');
+    tx.objectStore('poz').put(rekord);
+    tx.oncomplete = () => {
+      const tx2 = db.transaction('poz','readonly');
+      const g = tx2.objectStore('poz').get('test-1');
+      g.onsuccess = () => {
+        const ok = g.result && g.result.ean === rekord.ean;
+        set('c6', ok ? 'ok':'bad', ok
+          ? 'Baza danych w telefonie <b>działa</b>.\nZapisano i odczytano testową pozycję:\n' +
+            '<b>' + g.result.nazwa + '</b>, EAN ' + g.result.ean + ', ' + g.result.ilosc + ' szt.\n\n' +
+            'Ta pozycja przetrwa zamknięcie przeglądarki i restart telefonu.'
+          : 'Zapis się udał, ale odczyt zwrócił złe dane.','baza');
+        db.close();
+      };
+    };
+    tx.onerror = () => set('c6','bad','Błąd zapisu do bazy: ' + tx.error?.message,'baza');
+  };
+})();
+
+/* 7 — trwałość i miejsce */
+async function stanMagazynu(){
+  if (!navigator.storage){ set('c7','warn','Przeglądarka nie podaje informacji o magazynie.','trwalosc'); return; }
+  const est = await navigator.storage.estimate();
+  const trwaly = navigator.storage.persisted ? await navigator.storage.persisted() : false;
+  const gb = b => (b/1073741824).toFixed(2) + ' GB';
+  const t = 'Dostępne miejsce: <b>' + gb(est.quota||0) + '</b>\n' +
+            'Zajęte: <b>' + ((est.usage||0)/1024).toFixed(0) + ' KB</b>\n' +
+            'Trwały magazyn: <b>' + (trwaly ? 'TAK' : 'NIE') + '</b>\n\n' +
+            (trwaly
+              ? 'System nie skasuje danych aplikacji przy braku miejsca.'
+              : 'Bez trwałego magazynu system może skasować dane przy braku miejsca. ' +
+                'Kliknij przycisk poniżej.');
+  set('c7', trwaly ? 'ok':'warn', t, 'trwalosc');
+}
+stanMagazynu();
+el('bPersist').onclick = async () => {
+  if (!navigator.storage?.persist){ alert('Niedostępne w tej przeglądarce.'); return; }
+  const r = await navigator.storage.persist();
+  await stanMagazynu();
+  if (!r) set('c7','warn', el('c7').querySelector('.det').innerHTML +
+    '\n\nOdmowa. Chrome zwykle przyznaje trwały magazyn dopiero po zainstalowaniu ' +
+    'aplikacji na ekranie głównym (test 3) — zainstaluj i spróbuj ponownie.','trwalosc');
+};
+
+/* 8 — plik Excel */
+function plikXlsx(){
+  const bin = atob(XLSX_B64);
+  const buf = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) buf[i] = bin.charCodeAt(i);
+  return new File([buf], 'magazyn-test.xlsx',
+    {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+el('bShare').onclick = async () => {
+  const f = plikXlsx();
+  if (!navigator.share){
+    set('c8','bad','Udostępnianie plików <b>niedostępne</b> w tej przeglądarce.\n' +
+      'Zostaje pobieranie pliku i ręczne załączenie w mailu.','excel'); return;
+  }
+  if (navigator.canShare && !navigator.canShare({files:[f]})){
+    set('c8','warn','Przeglądarka nie chce udostępnić pliku .xlsx.\n' +
+      'Zostaje pobieranie pliku i ręczne załączenie w mailu.','excel'); return;
+  }
+  try {
+    await navigator.share({files:[f], title:'Raport magazynowy',
+      text:'Testowy eksport z aplikacji magazynowej.'});
+    set('c8','ok','Okno udostępniania <b>zadziałało</b>.\n' +
+      'Jeśli na liście był Gmail lub Outlook — wysyłka Excela mailem będzie działać ' +
+      'jednym kliknięciem z poziomu aplikacji.','excel');
+  } catch(e){
+    if (e.name === 'AbortError'){
+      set('c8','ok','Okno udostępniania się otworzyło (anulowałeś wybór) — to znaczy, że <b>działa</b>.','excel');
+    } else {
+      set('c8','bad','Błąd: ' + e.name + ' — ' + e.message,'excel');
+    }
+  }
+};
+el('bDl').onclick = () => {
+  const f = plikXlsx();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(f); a.download = f.name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  if (!R.excel) set('c8','warn','Plik został pobrany. Sprawdź, czy otwiera się w Excelu / Arkuszach ' +
+    'i czy widać w nim 2 wiersze danych.','excel');
+};
+
+/* 9 — offline */
+(function(){
+  const sw = 'serviceWorker' in navigator;
+  set('c9', sw ? 'ok':'bad', sw
+    ? 'Mechanizm pracy offline <b>dostępny</b>.\n' +
+      'Gotowa aplikacja będzie się uruchamiać i działać bez internetu.\n' +
+      (navigator.onLine ? 'Teraz jesteś online.' : 'Teraz jesteś offline — i strona działa.')
+    : 'Mechanizm pracy offline niedostępny (możliwe: tryb incognito).','offline');
+})();
+
+/* 10 — CDN */
+(function(){
+  const t0 = performance.now();
+  fetch('https://cdn.jsdelivr.net/npm/dexie@4/package.json', {mode:'cors'})
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+    .then(j => set('c10','ok','Sieć firmowa <b>nie blokuje</b> bibliotek zewnętrznych.\n' +
+      'Pobrano dexie ' + j.version + ' w ' + Math.round(performance.now()-t0) + ' ms.','cdn'))
+    .catch(e => set('c10','warn','Nie udało się pobrać biblioteki z internetu (' + e.message + ').\n' +
+      'To nie blokuje projektu — biblioteki zostaną wbudowane w aplikację na stałe.','cdn'));
+})();
+
+/* raport */
+function tekstRaportu(){
+  const znak = {ok:'[OK]  ', bad:'[BLAD]', warn:'[UWAGA]'};
+  let s = 'RAPORT TESTU URZADZENIA\n' + new Date().toLocaleString('pl-PL') + '\n' +
+          navigator.userAgent + '\n' + location.href + '\n' + '='.repeat(46) + '\n\n';
+  const nazwy = {bezpieczne:'1. Bezpieczne polaczenie', przegladarka:'2. Przegladarka',
+    instalacja:'3. Instalacja', aparat:'4. Aparat', skaner:'5. Skaner kodow',
+    baza:'6. Baza danych', trwalosc:'7. Trwalosc danych', excel:'8. Wysylka Excela',
+    offline:'9. Praca offline', cdn:'10. Dostep do bibliotek'};
+  for (const k in nazwy){
+    s += (R[k] ? znak[R[k].stan] : '[  ?  ]') + ' ' + nazwy[k] + '\n';
+    if (R[k]) s += '        ' + R[k].opis.replace(/\n/g,'\n        ') + '\n';
+    else s += '        nie uruchomiono\n';
+    s += '\n';
+  }
+  return s;
+}
+el('bRaport').onclick = () => {
+  el('raport').textContent = tekstRaportu();
+  el('raport').className = 'on';
+  el('bShareRaport').style.display = 'block';
+  el('raport').scrollIntoView({behavior:'smooth'});
+};
+el('bShareRaport').onclick = async () => {
+  const t = tekstRaportu();
+  try { await navigator.share({title:'Raport testu urzadzenia', text:t}); }
+  catch(e){
+    try { await navigator.clipboard.writeText(t); alert('Raport skopiowany do schowka.'); }
+    catch(_){ alert('Zaznacz i skopiuj tekst raportu ręcznie.'); }
+  }
+};
+
+/* manifest w locie – żeby dało się zainstalować bez dodatkowych plików */
+(function(){
+  const ikona = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512">' +
+    '<rect width="512" height="512" rx="96" fill="#1f6feb"/>' +
+    '<g fill="#fff"><rect x="128" y="150" width="26" height="212"/>' +
+    '<rect x="172" y="150" width="14" height="212"/>' +
+    '<rect x="204" y="150" width="34" height="212"/>' +
+    '<rect x="256" y="150" width="14" height="212"/>' +
+    '<rect x="288" y="150" width="26" height="212"/>' +
+    '<rect x="332" y="150" width="14" height="212"/>' +
+    '<rect x="364" y="150" width="20" height="212"/></g></svg>');
+  const man = {name:'Test możliwości – magazyn', short_name:'Test magazyn',
+    start_url:'.', scope:'.', display:'standalone',
+    background_color:'#0f1115', theme_color:'#1f6feb',
+    icons:[{src:ikona, sizes:'512x512', type:'image/svg+xml', purpose:'any'}]};
+  const l = document.createElement('link');
+  l.rel = 'manifest';
+  l.href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(man));
+  document.head.appendChild(l);
+})();
+
+addEventListener('pagehide', stopCam);
+</script>
+</body>
+</html>
