@@ -1,23 +1,20 @@
-/* Service worker wersji jednoplikowej — daje pracę bez internetu.
-   Plik nieobowiązkowy: bez niego aplikacja działa, tylko wymaga zasięgu
-   przy uruchamianiu. Nazwa pamięci podręcznej zawiera numer wersji
-   aplikacji, więc każde wydanie jest dla przeglądarki nową wersją. */
-const WERSJA = 'magazyn-1p-v8';
+/* Service worker — praca bez internetu.
+   TEN PLIK JEST STAŁY. Nie trzeba go podmieniać przy aktualizacjach aplikacji:
+   nazwa pamięci podręcznej nie zawiera numeru wersji, a pobieranie idzie
+   „najpierw sieć”, więc świeży index.html trafia do telefonu sam.
+   Wgrywasz go raz i zapominasz. */
+const PAMIEC = 'magazyn-1p';
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(WERSJA)
+  e.waitUntil(caches.open(PAMIEC)
     .then(c => c.addAll(['./', './index.html']))
-    .catch(() => {}));
-});
-
-/* nowa wersja czeka, aż użytkownik kliknie „Odśwież teraz” */
-self.addEventListener('message', e => {
-  if (e.data === 'przejmij') self.skipWaiting();
+    .catch(() => {})
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(k => Promise.all(k.filter(x => x !== WERSJA).map(x => caches.delete(x))))
+    .then(k => Promise.all(k.filter(x => x !== PAMIEC).map(x => caches.delete(x))))
     .then(() => self.clients.claim()));
 });
 
@@ -28,7 +25,7 @@ self.addEventListener('fetch', e => {
     fetch(e.request)
       .then(odp => {
         if (odp && odp.status === 200)
-          caches.open(WERSJA).then(c => c.put(e.request, odp.clone()));
+          caches.open(PAMIEC).then(c => c.put(e.request, odp.clone()));
         return odp;
       })
       .catch(() => caches.match(e.request).then(t => t || caches.match('./index.html')))
