@@ -1,13 +1,18 @@
 /* Service worker wersji jednoplikowej — daje pracę bez internetu.
    Plik nieobowiązkowy: bez niego aplikacja działa, tylko wymaga zasięgu
-   przy uruchamianiu. Po każdej podmianie index.html podbij WERSJA. */
-const WERSJA = 'magazyn-1p-v1';
+   przy uruchamianiu. Nazwa pamięci podręcznej zawiera numer wersji
+   aplikacji, więc każde wydanie jest dla przeglądarki nową wersją. */
+const WERSJA = 'magazyn-1p-v8';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(WERSJA)
     .then(c => c.addAll(['./', './index.html']))
-    .catch(() => {})
-    .then(() => self.skipWaiting()));
+    .catch(() => {}));
+});
+
+/* nowa wersja czeka, aż użytkownik kliknie „Odśwież teraz” */
+self.addEventListener('message', e => {
+  if (e.data === 'przejmij') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {

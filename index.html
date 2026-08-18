@@ -222,6 +222,15 @@ button.b:disabled{opacity:.45;cursor:default}
   transition:opacity .2s,transform .2s}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 
+/* pasek aktualizacji */
+#pasek-akt{position:fixed;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom) + 66px);
+  z-index:60;display:flex;align-items:center;gap:10px;background:var(--akc);color:#fff;
+  padding:11px 12px 11px 15px;border-radius:13px;font-size:14px;font-weight:600;
+  box-shadow:0 6px 18px rgba(16,24,40,.28)}
+#pasek-akt span{flex:1}
+#pasek-akt button{flex:none;background:#fff;color:var(--akc);border:0;border-radius:9px;
+  font:inherit;font-size:14px;font-weight:700;padding:9px 13px;cursor:pointer}
+
 /* wydruk */
 #wydruk{position:fixed;inset:0;z-index:100;background:#fff;color:#000;overflow:auto;
   padding-bottom:40px}
@@ -3086,17 +3095,6 @@ function stany() {
   return m;
 }
 
-/* wartość stanu wg ostatniej ceny zakupu */
-function ostatnieCeny() {
-  const m = new Map();
-  const pz = D.dokumenty.filter(d => !d.usuniety && d.typ === 'PZ')
-                        .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
-  for (const dok of pz)
-    for (const p of (dok.pozycje || []))
-      if (p.cena != null && p.cena !== '') m.set(p.produktId, Number(p.cena));
-  return m;
-}
-
 function ostatnieDostawy() {
   const m = new Map();
   for (const dok of D.dokumenty) {
@@ -3243,7 +3241,7 @@ async function start() {
 global.DB = {
   D, start, wczytaj, zapisz, zapiszWiele, usun, ustaw, uuid, teraz,
   produkty, lokalizacje, sprzety, dokumenty, partie, zamowienia,
-  stany, ostatnieCeny, ostatnieDostawy, braki,
+  stany, ostatnieDostawy, braki,
   nastepnyNumer, nastepnyNrInw, poKodzie, przenies,
   kopia, przywroc, kopiaPotrzebna
 };
@@ -3696,16 +3694,14 @@ function prod(id) { return DB.D.produkty.find(x => x.id === id) || {}; }
 /* ---------- poszczególne arkusze ---------- */
 
 function arkStany() {
-  const s = DB.stany(), ceny = DB.ostatnieCeny(), ost = DB.ostatnieDostawy();
+  const s = DB.stany(), ost = DB.ostatnieDostawy();
   const wiersze = DB.produkty()
     .sort((a, b) => a.nazwa.localeCompare(b.nazwa, 'pl'))
     .map(p => {
       const stan = s.get(p.id) || 0;
       const min = Number(p.stanMin) || 0;
-      const cena = ceny.get(p.id);
       return [p.nazwa, p.ean || '', p.kategoria || '', p.jm || 'szt',
               stan, min || null, min > stan ? min - stan : null,
-              cena != null ? cena : null, cena != null ? cena * stan : null,
               dt(ost.get(p.id)), p.dostawca || ''];
     });
   return {
@@ -3714,13 +3710,12 @@ function arkStany() {
       { n: 'Produkt', t: 'txt', w: 36 }, { n: 'EAN', t: 'txt', w: 15 },
       { n: 'Kategoria', t: 'txt', w: 16 }, { n: 'Jm', t: 'txt', w: 7 },
       { n: 'Stan', t: 'int', w: 9 }, { n: 'Minimum', t: 'int', w: 10 },
-      { n: 'Brakuje', t: 'int', w: 10 }, { n: 'Cena ost.', t: 'zl', w: 11 },
-      { n: 'Wartość', t: 'zl', w: 13 }, { n: 'Ostatnia dostawa', t: 'data', w: 15 },
+      { n: 'Brakuje', t: 'int', w: 10 }, { n: 'Ostatnia dostawa', t: 'data', w: 15 },
       { n: 'Dostawca', t: 'txt', w: 20 }
     ],
     wiersze,
     podswietl: w => w[6] != null,
-    sumy: [4, 8]
+    sumy: [4]
   };
 }
 
@@ -3757,11 +3752,8 @@ function arkDokumenty(typ, nazwa, etykietaStrony) {
         wiersze.push([
           dt(d.data), d.numer || '', strona, d.osoba || '',
           pr.nazwa || nazwaProd(p.produktId), pr.ean || '', pr.jm || 'szt',
-          Number(p.ilosc) || 0,
-          p.cena != null && p.cena !== '' ? Number(p.cena) : null,
-          p.cena != null && p.cena !== '' ? Number(p.cena) * (Number(p.ilosc) || 0) : null,
-          d.nrFaktury || '', d.uwagi || ''
-        ]);
+          Number(p.ilosc) || 0
+        ].concat(typ === 'PZ' ? [d.nrFaktury || ''] : []).concat([d.uwagi || '']));
       });
     });
   return {
@@ -3770,11 +3762,10 @@ function arkDokumenty(typ, nazwa, etykietaStrony) {
       { n: 'Data', t: 'data', w: 12 }, { n: 'Dokument', t: 'txt', w: 16 },
       { n: etykietaStrony, t: 'txt', w: 24 }, { n: 'Osoba', t: 'txt', w: 18 },
       { n: 'Produkt', t: 'txt', w: 34 }, { n: 'EAN', t: 'txt', w: 15 },
-      { n: 'Jm', t: 'txt', w: 7 }, { n: 'Ilość', t: 'int', w: 9 },
-      { n: 'Cena', t: 'zl', w: 11 }, { n: 'Wartość', t: 'zl', w: 13 },
-      { n: 'Nr faktury/WZ', t: 'txt', w: 16 }, { n: 'Uwagi', t: 'txt', w: 26 }
-    ],
-    wiersze, sumy: [7, 9]
+      { n: 'Jm', t: 'txt', w: 7 }, { n: 'Ilość', t: 'int', w: 9 }
+    ].concat(typ === 'PZ' ? [{ n: 'Nr faktury/WZ', t: 'txt', w: 16 }] : [])
+     .concat([{ n: 'Uwagi', t: 'txt', w: 26 }]),
+    wiersze, sumy: [7]
   };
 }
 
@@ -4290,7 +4281,6 @@ const POLA = {
       { k: 'nazwa', n: 'Nazwa produktu', wym: true, hasla: ['nazwa', 'produkt', 'towar', 'artykul', 'artykuł', 'opis'] },
       { k: 'ean', n: 'Kod EAN', hasla: ['ean', 'kod kreskowy', 'kod'] },
       { k: 'ilosc', n: 'Ilość', wym: true, typ: 'liczba', hasla: ['ilosc', 'ilość', 'szt', 'sztuk', 'liczba', 'qty', 'stan'] },
-      { k: 'cena', n: 'Cena jednostkowa', typ: 'liczba', hasla: ['cena', 'cena netto', 'cena jedn', 'wartosc jedn'] },
       { k: 'jm', n: 'Jednostka', hasla: ['jm', 'j.m.', 'jedn', 'jednostka'] }
     ]
   }
@@ -4472,8 +4462,7 @@ async function wykonaj(encja, plan, opcje) {
         }, false);
         dodane++;
       }
-      pozycje.push({ produktId: p.id, ilosc: rek.ilosc,
-                     cena: rek.cena != null ? rek.cena : null });
+      pozycje.push({ produktId: p.id, ilosc: rek.ilosc });
     }
     if (pozycje.length) {
       await DB.zapisz('dokumenty', {
@@ -4666,19 +4655,123 @@ function przeliczStatus(z) {
 }
 const ETYKIETY_STATUSU = { nowe: 'nowe', czesciowo: 'w toku', gotowe: 'gotowe', puste: 'bez pozycji' };
 
-/* ---------- odhaczanie ---------- */
-async function przelacz(z, indeks, wartosc) {
-  const p = z.pozycje[indeks];
-  if (!p) return;
-  p.ok = wartosc == null ? !p.ok : !!wartosc;
-  p.kiedy = p.ok ? DB.teraz() : null;
-  await pozmianie(z);
+/* ---------- kontrola stanu ----------
+   Odhaczona pozycja w zamówieniu, które nie jest jeszcze gotowe, to rezerwacja:
+   towar jest już przypisany, ale dokument wydania powstanie dopiero przy
+   zamknięciu zamówienia. Dostępne = stan magazynowy minus rezerwacje. */
+function rezerwacje() {
+  const m = new Map();
+  for (const z of DB.zamowienia()) {
+    if (z.status === 'gotowe') continue;      // te mają już swój dokument w stanach
+    const p = partiaZam(z);
+    if (p && p.zdejmujStan === false) continue;
+    for (const poz of z.pozycje)
+      if (poz.ok && poz.produktId)
+        m.set(poz.produktId, (m.get(poz.produktId) || 0) + poz.ilosc);
+  }
+  return m;
 }
 
+function dostepne() {
+  const s = DB.stany(), r = rezerwacje(), m = new Map();
+  for (const id of new Set([...s.keys(), ...r.keys()]))
+    m.set(id, (s.get(id) || 0) - (r.get(id) || 0));
+  return m;
+}
+
+const nazwaProduktu = id => {
+  const p = DB.D.produkty.find(x => x.id === id);
+  return p ? p.nazwa : '(nieznany)';
+};
+
+/* Licznik braków. Pobiera pozycje z mapy dostępności; gdy czegoś nie starcza,
+   i tak schodzi poniżej zera — dzięki temu niedobory z wielu zamówień sumują się
+   i „przyjmij brakujące” dopisuje tyle, żeby starczyło na wszystko naraz. */
+function licznikBrakow(dost) {
+  const start = new Map(dost);
+  const zabl = new Map();
+  return {
+    wez(p) {
+      if (!p.produktId) return true;          // spoza katalogu — bez kontroli stanu
+      const masz = dost.get(p.produktId) || 0;
+      dost.set(p.produktId, masz - p.ilosc);
+      if (masz >= p.ilosc) return true;
+      const b = zabl.get(p.produktId) || { potrzeba: 0 };
+      b.potrzeba += p.ilosc;
+      zabl.set(p.produktId, b);
+      return false;
+    },
+    braki() {
+      return [...zabl.entries()].map(([id, b]) => ({
+        produktId: id, nazwa: nazwaProduktu(id), potrzeba: b.potrzeba,
+        masz: Math.max(0, start.get(id) || 0),
+        brakuje: Math.max(0, -(dost.get(id) || 0))
+      })).filter(b => b.brakuje > 0);
+    }
+  };
+}
+
+/* wygodny skrót dla pojedynczego dokumentu */
+function zabraknie(pozycje, dost) {
+  const l = licznikBrakow(dost);
+  pozycje.forEach(p => l.wez(p));
+  return l.braki();
+}
+
+/* jeden dokument przyjęcia uzupełniający wszystkie braki naraz */
+async function przyjmijBrakujace(braki, opis) {
+  const scalone = new Map();
+  braki.forEach(b => scalone.set(b.produktId,
+    Math.max(scalone.get(b.produktId) || 0, b.brakuje)));
+  const pozycje = [...scalone.entries()].map(([produktId, ilosc]) => ({ produktId, ilosc }));
+  if (!pozycje.length) return null;
+  return DB.zapisz('dokumenty', {
+    typ: 'PZ', numer: DB.nastepnyNumer('PZ'),
+    data: new Date().toISOString().slice(0, 10),
+    dostawca: '', nrFaktury: '',
+    uwagi: opis || 'uzupełnienie stanu przed wydaniem',
+    pozycje
+  }, false);
+}
+
+/* ---------- odhaczanie ---------- */
+function kontrolaWlaczona(z) {
+  const p = partiaZam(z);
+  return !(p && p.zdejmujStan === false);
+}
+
+async function przelacz(z, indeks) {
+  const p = z.pozycje[indeks];
+  if (!p) return { ok: false };
+  if (!p.ok && kontrolaWlaczona(z)) {
+    const braki = zabraknie([p], dostepne());
+    if (braki.length) return { ok: false, braki };
+  }
+  p.ok = !p.ok;
+  p.kiedy = p.ok ? DB.teraz() : null;
+  await pozmianie(z);
+  return { ok: true };
+}
+
+/* Odhacza to, co się mieści w stanie, i zwraca listę pozycji, których zabrakło. */
 async function odhaczWszystko(z, wartosc) {
   const w = wartosc !== false;
-  z.pozycje.forEach(p => { p.ok = w; p.kiedy = w ? DB.teraz() : null; });
+  if (!w) {
+    z.pozycje.forEach(p => { p.ok = false; p.kiedy = null; });
+    await pozmianie(z);
+    return { ok: true, braki: [] };
+  }
+  const kontrola = kontrolaWlaczona(z);
+  const licznik = licznikBrakow(dostepne());
+  for (const p of z.pozycje) {
+    if (p.ok) continue;
+    if (kontrola && !licznik.wez(p)) continue;
+    p.ok = true;
+    p.kiedy = DB.teraz();
+  }
   await pozmianie(z);
+  const braki = kontrola ? licznik.braki() : [];
+  return { ok: !braki.length, braki };
 }
 
 async function pozmianie(z) {
@@ -4749,9 +4842,22 @@ async function odhaczWiele(lista, wartosc) {
   const numer = numeratorRW();
   const noweDok = [];
   const doKasacji = [];
+  const licznik = licznikBrakow(dostepne());
+  let pominiete = 0;
 
   for (const z of lista) {
-    z.pozycje.forEach(p => { p.ok = w; p.kiedy = w ? DB.teraz() : null; });
+    if (!w) {
+      z.pozycje.forEach(p => { p.ok = false; p.kiedy = null; });
+    } else {
+      const kontrola = kontrolaWlaczona(z);
+      let cos = false;
+      for (const p of z.pozycje) {
+        if (p.ok) continue;
+        if (kontrola && !licznik.wez(p)) continue;
+        p.ok = true; p.kiedy = DB.teraz(); cos = true;
+      }
+      if (!cos && z.pozycje.some(p => !p.ok)) pominiete++;
+    }
     przeliczStatus(z);
     if (z.status === 'gotowe') {
       const d = budujWydanie(z, numer);
@@ -4769,7 +4875,8 @@ async function odhaczWiele(lista, wartosc) {
   if (doKasacji.length) await DB.zapiszWiele('dokumenty', doKasacji);
   await DB.zapiszWiele('zamowienia', lista);
   await DB.ustaw('operacjiOdKopii', (DB.D.ust.operacjiOdKopii || 0) + lista.length);
-  return { zamowien: lista.length, dokumentow: noweDok.length, cofnietych: doKasacji.length };
+  return { zamowien: lista.length, dokumentow: noweDok.length,
+           cofnietych: doKasacji.length, braki: w ? licznik.braki() : [], pominiete };
 }
 
 /* ---------- filtrowanie ---------- */
@@ -4931,7 +5038,8 @@ global.Zam = {
   ROLE, zgadnijRole, zapamietanyUklad, zapamietajUklad, przygotuj, dopasujArtykuly,
   zapiszPartie, przeliczStatus, ETYKIETY_STATUSU, przelacz, odhaczWszystko, pozmianie,
   zamowieniaPartii, wartosciFiltra, filtruj, podsumowanie, arkusze, partiaZam,
-  utworzWydanie, cofnijWydanie, odhaczWiele, budujWydanie, numeratorRW
+  utworzWydanie, cofnijWydanie, odhaczWiele, budujWydanie, numeratorRW,
+  rezerwacje, dostepne, zabraknie, licznikBrakow, przyjmijBrakujace, nazwaProduktu
 };
 
 })(window);
@@ -5043,7 +5151,6 @@ function zZdjecia(plik, maks) {
    ================================================================== */
 function pulpit() {
   const braki = DB.braki();
-  const stan = DB.stany();
   const kopia = DB.kopiaPotrzebna();
   const liczbaProd = DB.produkty().length;
   const liczbaSpr = DB.sprzety().length;
@@ -5070,13 +5177,6 @@ function pulpit() {
          'Możesz też wczytać dane z kopii zapasowej w Ustawieniach.</div></div>';
   }
 
-  const wartosc = (() => {
-    const c = DB.ostatnieCeny();
-    let s = 0;
-    for (const [id, il] of stan) s += (c.get(id) || 0) * il;
-    return s;
-  })();
-
   return {
     tytul: DB.D.ust.firma || 'Magazyn',
     tab: 'pulpit',
@@ -5094,9 +5194,7 @@ function pulpit() {
         kafel('#/skanuj', '⌗', 'Skanuj', 'Sprawdź, co to za kod') +
         kafel('#/stany', '▦', 'Stany', 'Co i ile jest na magazynie') +
         kafel('#/eksport', '⤓', 'Excel i kopia', 'Raport i kopia zapasowa') +
-      '</div>' +
-      (wartosc ? '<div class="karta"><h2>Wartość zapasu</h2><p>' + h(zl(wartosc)) +
-        ' — wg ostatnich cen zakupu.</p></div>' : '')
+      '</div>'
   };
 }
 function kafel(href, ikn, tyt, opis, mocny) {
@@ -5109,7 +5207,7 @@ function kafel(href, ikn, tyt, opis, mocny) {
    ================================================================== */
 function stany(param) {
   const filtr = param.f || 'stany';
-  const st = DB.stany(), ceny = DB.ostatnieCeny();
+  const st = DB.stany();
 
   const zakladki = '<div class="filtry">' +
     ['stany|Stany', 'braki|Do zamówienia', 'dok|Dokumenty', 'katalog|Katalog']
@@ -5126,7 +5224,7 @@ function stany(param) {
   if (filtr === 'stany' || filtr === 'braki') {
     const braki = filtr === 'braki';
     let lista = DB.produkty().map(p => ({
-      p, stan: st.get(p.id) || 0, min: Number(p.stanMin) || 0, cena: ceny.get(p.id)
+      p, stan: st.get(p.id) || 0, min: Number(p.stanMin) || 0
     }));
     if (braki) lista = lista.filter(x => x.min > 0 && x.stan < x.min);
     lista.sort((a, b) => braki ? (b.min - b.stan) - (a.min - a.stan)
@@ -5264,7 +5362,8 @@ function produkt(param) {
       poleObszar('uwagi', 'Uwagi', p.uwagi) +
       '</div>' +
       '<button class="b glowny" id="zapisz">Zapisz</button>' +
-      (nowy ? '' : '<button class="b zly" id="usun">Usuń produkt</button>') +
+      (nowy ? '' : '<button class="b" id="popraw-stan">Ustaw stan ręcznie</button>' +
+                   '<button class="b zly" id="usun">Usuń produkt</button>') +
       (ruch.length ? '<div class="naglowek-sekcji">Historia</div><div class="lista">' +
         ruch.map(r => '<a class="poz" href="#/dokument/' + r.dokId + '"><div class="tre">' +
           '<div class="tyt">' + h(r.numer) + '</div><div class="pod">' + h(dataPL(r.data)) +
@@ -5285,6 +5384,8 @@ function produkt(param) {
         toast('Zapisano');
         history.back();
       };
+      const ps = $('#popraw-stan');
+      if (ps) ps.onclick = () => ustawStan(p);
       const u = $('#usun');
       if (u) u.onclick = async () => {
         const uzyty = DB.dokumenty().some(d => (d.pozycje || []).some(x => x.produktId === p.id));
@@ -5298,6 +5399,57 @@ function produkt(param) {
       };
     }
   };
+}
+
+/* Ręczne ustawienie stanu. Nie nadpisujemy liczby — dopisujemy dokument
+   korekty na różnicę, żeby stan dało się rozłożyć na dokumenty tak samo
+   jak każdy inny. */
+function ustawStan(p) {
+  const obecny = DB.stany().get(p.id) || 0;
+  const pierwszy = !DB.dokumenty().some(d => (d.pozycje || []).some(x => x.produktId === p.id));
+  const jm = p.jm || 'szt';
+
+  modal('Ustaw stan: ' + p.nazwa,
+    '<p style="margin-bottom:12px">Stan wyliczony z dokumentów: <b>' +
+      liczba(obecny) + ' ' + h(jm) + '</b></p>' +
+    '<label><span class="et">Ile jest faktycznie (' + h(jm) + ')</span>' +
+      '<input id="m-stan" type="text" inputmode="decimal" value="' +
+      h(obecny) + '"></label>' +
+    '<label><span class="et">Powód</span><input id="m-powod" type="text" value="' +
+      (pierwszy ? 'stan początkowy' : 'spis z natury') + '"></label>' +
+    '<p style="font-size:13px;color:var(--tx2)">Powstanie dokument korekty na różnicę. ' +
+      'Nic nie zostanie nadpisane — historia zostaje.</p>',
+    [{ tekst: 'Anuluj' },
+     { tekst: 'Zapisz', klasa: 'glowny', zamknij: false, akcja: async () => {
+        const nowy = naLiczbe($('#m-stan').value);
+        if (nowy == null || nowy < 0) { toast('Podaj liczbę nie mniejszą od zera'); return; }
+        const roznica = nowy - obecny;
+        if (!roznica) { zamknijModal(); toast('Stan już się zgadza'); return; }
+
+        /* zejście w dół nie może wyprowadzić poniżej tego, co już zarezerwowano */
+        if (roznica < 0) {
+          const rez = Zam.rezerwacje().get(p.id) || 0;
+          if (nowy < rez) {
+            zamknijModal();
+            toast('Nie można zejść poniżej ' + liczba(rez) +
+                  ' — tyle jest już odhaczone w zamówieniach', 5000);
+            return;
+          }
+        }
+        await DB.zapisz('dokumenty', {
+          typ: 'KOR',
+          numer: DB.nastepnyNumer('KOR'),
+          data: dzisISO(),
+          powod: $('#m-powod').value.trim() || 'korekta stanu',
+          osoba: DB.D.ust.osoba || '',
+          uwagi: 'ustawienie stanu z ' + liczba(obecny) + ' na ' + liczba(nowy),
+          pozycje: [{ produktId: p.id, ilosc: roznica }]
+        });
+        zamknijModal();
+        toast((roznica > 0 ? 'Dodano ' : 'Zdjęto ') + liczba(Math.abs(roznica)) + ' ' + jm, 3500);
+        odswiez();
+      } }]);
+  setTimeout(() => { const i = $('#m-stan'); if (i) { i.focus(); i.select(); } }, 60);
 }
 
 function historiaProduktu(pid) {
@@ -5369,9 +5521,7 @@ function edytorDokumentu(d, nowy) {
   const pozycje = d.pozycje.length
     ? '<div class="lista" id="pozycje">' + d.pozycje.map((p, i) => {
         const pr = DB.produkty().find(x => x.id === p.produktId) || { nazwa: '(usunięty)' };
-        const pod = d.typ === 'PZ'
-          ? (p.cena != null && p.cena !== '' ? zl(p.cena) + ' / ' + (pr.jm || 'szt') : 'bez ceny')
-          : (pr.ean || 'bez kodu EAN');
+        const pod = pr.ean || (pr.kategoria || 'bez kodu EAN');
         return '<button class="poz" type="button" data-i="' + i + '"><div class="tre">' +
           '<div class="tyt">' + h(pr.nazwa) + '</div><div class="pod">' + h(pod) +
           '</div></div><div class="licz">' + (d.typ === 'KOR' && p.ilosc > 0 ? '+' : '') +
@@ -5380,15 +5530,13 @@ function edytorDokumentu(d, nowy) {
     : pusto('＋', 'Dodaj pierwszą pozycję — najszybciej skanerem.');
 
   const suma = d.pozycje.reduce((s, p) => s + (Number(p.ilosc) || 0), 0);
-  const wartosc = d.pozycje.reduce((s, p) =>
-    s + (Number(p.cena) || 0) * (Number(p.ilosc) || 0), 0);
 
   return {
     tytul: nowy ? o.nowy : (o.tytul + ' ' + (d.numer || '')),
     wstecz: true,
     html: naglowek +
       '<div class="naglowek-sekcji"><span>Pozycje (' + d.pozycje.length + ')</span>' +
-        (suma ? '<span>razem ' + liczba(suma) + (wartosc ? ' · ' + h(zl(wartosc)) : '') + '</span>' : '') +
+        (suma ? '<span>razem ' + liczba(suma) + '</span>' : '') +
       '</div>' +
       pozycje +
       '<div class="przyciski">' +
@@ -5414,14 +5562,20 @@ function edytorDokumentu(d, nowy) {
         zapiszNaglowek();
         if (!d.pozycje.length) { toast('Dokument nie ma żadnej pozycji'); return; }
         if (d.typ === 'RW' && !d.lokalizacjaId) { toast('Wybierz punkt docelowy'); return; }
-        if (d.typ === 'RW') {
-          const st = DB.stany();
-          const zaMalo = d.pozycje.filter(p => (st.get(p.produktId) || 0) < (Number(p.ilosc) || 0));
-          if (zaMalo.length) {
-            const ok = await potwierdz('Stan zejdzie poniżej zera',
-              zaMalo.length + ' pozycji przekracza stan magazynowy. To zwykle znaczy, ' +
-              'że jakiejś dostawy nie ma jeszcze w systemie. Zapisać mimo to?', 'Zapisz mimo to');
-            if (!ok) return;
+        /* wydać można tylko to, co jest — z uwzględnieniem towaru już
+           zarezerwowanego przez odhaczone pozycje zamówień */
+        if (d.typ === 'RW' || d.typ === 'KOR') {
+          const dost = Zam.dostepne();
+          const sprawdzane = d.typ === 'KOR'
+            ? d.pozycje.filter(p => Number(p.ilosc) < 0)
+                       .map(p => ({ produktId: p.produktId, ilosc: -Number(p.ilosc) }))
+            : d.pozycje.map(p => ({ produktId: p.produktId, ilosc: Number(p.ilosc) || 0 }));
+          const braki = Zam.zabraknie(sprawdzane, dost);
+          if (braki.length) {
+            pokazBraki(braki, d.typ === 'KOR' ? 'uzupełnienie przed korektą'
+                                              : 'uzupełnienie przed wydaniem ' + d.numer,
+              () => { odswiez(); toast('Stan uzupełniony — zapisz dokument ponownie', 4000); });
+            return;
           }
         }
         await DB.zapisz('dokumenty', d);
@@ -5454,19 +5608,13 @@ async function skanujPozycje(d) {
 
 function pytajOIlosc(d, produkt, indeks, wSkanerze) {
   const ist = indeks != null ? d.pozycje[indeks] : d.pozycje.find(x => x.produktId === produkt.id);
-  const cenaDom = ist && ist.cena != null ? ist.cena
-    : (DB.ostatnieCeny().get(produkt.id) != null ? DB.ostatnieCeny().get(produkt.id) : '');
   const start = ist ? ist.ilosc : (d.typ === 'KOR' ? '' : 1);
 
   modal(produkt.nazwa,
     '<label><span class="et">Ilość (' + h(produkt.jm || 'szt') + ')' +
       (d.typ === 'KOR' ? ' — ujemna zmniejsza stan' : '') + '</span>' +
-      '<input id="m-ilosc" type="number" inputmode="decimal" step="any" value="' +
+      '<input id="m-ilosc" type="text" inputmode="decimal" value="' +
       h(start) + '" autofocus></label>' +
-    (d.typ === 'PZ'
-      ? '<label><span class="et">Cena za ' + h(produkt.jm || 'szt') + ' (zł)</span>' +
-        '<input id="m-cena" type="number" inputmode="decimal" step="0.01" value="' +
-        h(cenaDom) + '"></label>' : '') +
     (produkt.wOpak ? '<p style="font-size:13px;color:var(--tx2)">W opakowaniu: ' +
       h(produkt.wOpak) + ' ' + h(produkt.jm || 'szt') + '</p>' : ''),
     [
@@ -5476,12 +5624,10 @@ function pytajOIlosc(d, produkt, indeks, wSkanerze) {
         odswiez();
       } } : { tekst: 'Anuluj' },
       { tekst: 'Zapisz', klasa: 'glowny', akcja: () => {
-        const il = parseFloat($('#m-ilosc').value.replace(',', '.'));
-        if (!isFinite(il) || (d.typ !== 'KOR' && il <= 0)) { toast('Podaj poprawną ilość'); return; }
-        const cenaEl = $('#m-cena');
-        const cena = cenaEl && cenaEl.value !== '' ? parseFloat(cenaEl.value.replace(',', '.')) : null;
-        if (ist) { ist.ilosc = il; if (cena != null) ist.cena = cena; }
-        else d.pozycje.push({ produktId: produkt.id, ilosc: il, cena });
+        const il = naLiczbe($('#m-ilosc').value);
+        if (il == null || (d.typ !== 'KOR' && il <= 0)) { toast('Podaj poprawną ilość'); return; }
+        if (ist) ist.ilosc = il;
+        else d.pozycje.push({ produktId: produkt.id, ilosc: il });
         if (wSkanerze) { toast(produkt.nazwa + ': ' + il); Skaner.info('Dodano ' + il + ' × ' + produkt.nazwa); }
         else odswiez();
       } }
@@ -5532,7 +5678,7 @@ function nowyProduktZKodu(d, kod) {
       '<label><span class="et">Jednostka</span><select id="m-jm">' +
         ['szt', 'opak', 'ryza', 'kpl', 'rolka', 'karton'].map(x =>
           '<option>' + x + '</option>').join('') + '</select></label>' +
-      '<label><span class="et">Stan min.</span><input id="m-min" type="number" inputmode="numeric"></label>' +
+      '<label><span class="et">Stan min.</span><input id="m-min" type="text" inputmode="numeric"></label>' +
     '</div>',
     [{ tekst: 'Anuluj', akcja: () => { if (d) setTimeout(() => skanujPozycje(d), 150); } },
      { tekst: 'Dodaj', klasa: 'glowny', zamknij: false, akcja: async () => {
@@ -5540,7 +5686,7 @@ function nowyProduktZKodu(d, kod) {
         if (!nazwa) { toast('Podaj nazwę'); return; }
         const p = await DB.zapisz('produkty', {
           nazwa, ean: kod || '', jm: $('#m-jm').value,
-          stanMin: $('#m-min').value ? Number($('#m-min').value) : null
+          stanMin: naLiczbe($('#m-min').value)
         });
         zamknijModal();
         if (d) pytajOIlosc(d, p, null, false); else odswiez();
@@ -5552,9 +5698,6 @@ function podgladDokumentu(d) {
   const o = OPIS_TYPU[d.typ];
   const strona = d.typ === 'PZ' ? d.dostawca
                : d.typ === 'RW' ? Eksport.nazwaLok(d.lokalizacjaId) : d.powod;
-  const wartosc = (d.pozycje || []).reduce((s, p) =>
-    s + (Number(p.cena) || 0) * (Number(p.ilosc) || 0), 0);
-
   return {
     tytul: d.numer, wstecz: true,
     html:
@@ -5566,13 +5709,10 @@ function podgladDokumentu(d) {
       '<div class="lista">' + (d.pozycje || []).map(p => {
         const pr = DB.produkty().find(x => x.id === p.produktId) || { nazwa: '(usunięty produkt)' };
         return '<div class="poz"><div class="tre"><div class="tyt">' + h(pr.nazwa) + '</div>' +
-          '<div class="pod">' + (p.cena != null && p.cena !== '' ? h(zl(p.cena)) + ' / ' +
-          h(pr.jm || 'szt') : '—') + '</div></div><div class="licz">' +
+          '<div class="pod">' + h(pr.ean || pr.kategoria || '—') + '</div></div><div class="licz">' +
           (d.typ === 'KOR' && p.ilosc > 0 ? '+' : '') + liczba(p.ilosc) +
           '<small>' + h(pr.jm || 'szt') + '</small></div></div>';
       }).join('') + '</div>' +
-      (wartosc ? '<div class="karta"><h2>Wartość dokumentu</h2><p style="font-size:20px;' +
-        'font-weight:700;color:var(--tx)">' + h(zl(wartosc)) + '</p></div>' : '') +
       '<button class="b" id="drukuj">Wydruk / PDF</button>' +
       '<button class="b zly" id="usun">Usuń dokument</button>',
     po: () => {
@@ -5583,12 +5723,10 @@ function podgladDokumentu(d) {
            ['Osoba', d.osoba || '—'],
            ['Nr faktury / WZ', d.nrFaktury || '—'],
            ['Firma', DB.D.ust.firma || '—']],
-          [{ tytul: 'Pozycje', kolumny: ['Lp', 'Produkt', 'EAN', 'Jm', 'Ilość', 'Cena', 'Wartość'],
+          [{ tytul: 'Pozycje', kolumny: ['Lp', 'Produkt', 'EAN', 'Jm', 'Ilość'],
              wiersze: (d.pozycje || []).map(p => {
                const pr = DB.produkty().find(x => x.id === p.produktId) || {};
-               return [pr.nazwa || '(usunięty)', pr.ean || '', pr.jm || 'szt', p.ilosc,
-                       p.cena != null && p.cena !== '' ? zl(p.cena) : '',
-                       p.cena != null && p.cena !== '' ? zl(p.cena * p.ilosc) : ''];
+               return [pr.nazwa || '(usunięty)', pr.ean || '', pr.jm || 'szt', p.ilosc];
              }) }],
           ['Wydał / przyjął', 'Odebrał']);
       };
@@ -6214,6 +6352,10 @@ function ustawienia() {
       '</div>' +
       '</div>' +
       '<button class="b glowny" id="zapisz">Zapisz ustawienia</button>' +
+      '<div class="karta"><h2>Wersja aplikacji</h2><p><b>' + h(window.WERSJA_APP || '?') +
+        '</b><br>Po podmianie pliku na hostingu ten numer powinien się zmienić. ' +
+        'Jeśli się nie zmienił, aplikacja nadal chodzi ze starej kopii.</p></div>' +
+      '<button class="b" id="sprawdz-akt">Sprawdź, czy jest nowsza wersja</button>' +
       '<div class="karta"><h2>Zajęte miejsce</h2><p id="miejsce">liczę…</p></div>' +
       '<div class="karta"><h2>Dane w tym urządzeniu</h2><p>' +
         DB.D.produkty.length + ' produktów · ' + DB.D.dokumenty.length + ' dokumentów · ' +
@@ -6226,6 +6368,18 @@ function ustawienia() {
         for (const [k, v] of Object.entries(d)) await DB.ustaw(k, v);
         toast('Zapisano');
         odswiez();
+      };
+      $('#sprawdz-akt').onclick = async () => {
+        const b = $('#sprawdz-akt');
+        b.disabled = true; b.textContent = 'Sprawdzam…';
+        if (!window.sprawdzAktualizacje) {
+          toast('Praca offline nie jest włączona — odśwież stronę ręcznie', 4000);
+        } else {
+          const jest = await window.sprawdzAktualizacje();
+          toast(jest ? 'Jest nowsza wersja — kliknij pasek na dole'
+                     : 'Masz najnowszą wersję (' + (window.WERSJA_APP || '') + ')', 4000);
+        }
+        b.disabled = false; b.textContent = 'Sprawdź, czy jest nowsza wersja';
       };
       $('#kasuj').onclick = async () => {
         if (!(await potwierdz('Skasować wszystko?',
@@ -6306,6 +6460,43 @@ function opis() {
       'a dokumenty tylko się dopisuje. Do tego czasu można pracować na jednym urządzeniu, ' +
       'a pozostałym osobom przekazywać raport Excel.</p></div>'
   };
+}
+
+/* ------------------------------------------------------------------
+   Wspólne okno „nie ma tego na stanie”. Blokuje wydanie, ale pozwala
+   jednym kliknięciem dopisać przyjęcie — bo najczęstsza przyczyna to
+   towar, który fizycznie leży w magazynie, tylko dostawy nikt nie wpisał.
+   ------------------------------------------------------------------ */
+function pokazBraki(braki, opisDokumentu, poUzupelnieniu) {
+  const scalone = new Map();
+  braki.forEach(b => {
+    const x = scalone.get(b.produktId);
+    if (!x || b.brakuje > x.brakuje) scalone.set(b.produktId, b);
+  });
+  const lista = [...scalone.values()];
+  const suma = lista.reduce((a, b) => a + b.brakuje, 0);
+
+  modal('Nie ma tego na stanie',
+    '<p style="margin-bottom:10px">Nie da się wydać towaru, którego nie ma w magazynie. ' +
+    'Brakuje <b>' + liczba(suma) + ' szt.</b> w ' + lista.length + ' pozycjach:</p>' +
+    '<div class="lista" style="max-height:40dvh;overflow:auto">' +
+    lista.slice(0, 30).map(b =>
+      '<div class="poz"><div class="tre"><div class="tyt">' + h(b.nazwa) + '</div>' +
+      '<div class="pod">potrzeba ' + liczba(b.potrzeba) + ', na stanie ' + liczba(b.masz) +
+      '</div></div><div class="licz" style="color:var(--zle)">−' + liczba(b.brakuje) +
+      '</div></div>').join('') +
+    (lista.length > 30 ? '<div class="poz"><div class="pod">…i jeszcze ' +
+      (lista.length - 30) + '</div></div>' : '') + '</div>' +
+    '<p style="margin-top:10px;font-size:13.5px;color:var(--tx2)">' +
+    'Jeśli towar fizycznie jest, a brakuje tylko wpisu — dopisz przyjęcie ' +
+    'poniższym przyciskiem i spróbuj ponownie.</p>',
+    [{ tekst: 'Anuluj' },
+     { tekst: 'Przyjmij brakujące', klasa: 'glowny', akcja: async () => {
+        await Zam.przyjmijBrakujace(lista, opisDokumentu);
+        toast('Dopisano przyjęcie ' + liczba(suma) + ' szt.', 3500);
+        if (poUzupelnieniu) poUzupelnieniu();
+        else odswiez();
+      } }]);
 }
 
 /* ==================================================================
@@ -6603,8 +6794,11 @@ function partia(param) {
           'Odhacz'))) return;
         toast('Pracuję…');
         const w = await Zam.odhaczWiele(doZrobienia, true);
-        toast('Odhaczono ' + w.zamowien + ' zamówień, wydań: ' + w.dokumentow, 3500);
         odswiez();
+        if (w.braki.length)
+          pokazBraki(w.braki, 'uzupełnienie stanu — ' + p.nazwa);
+        else
+          toast('Odhaczono ' + w.zamowien + ' zamówień, wydań: ' + w.dokumentow, 3500);
       };
       const eks = async (zbior, prefiks) => {
         toast('Generuję plik…');
@@ -6679,7 +6873,7 @@ function zamowienie(param) {
       '<div class="naglowek-sekcji"><span>Pozycje</span><span>' + ok + ' / ' +
         z.pozycje.length + '</span></div>' +
       (z.pozycje.length
-        ? '<div class="lista">' + z.pozycje.map((poz, i) =>
+        ? '<div class="lista">' + (() => { const dost = Zam.dostepne(); return z.pozycje.map((poz, i) =>
             '<button class="poz" type="button" data-i="' + i + '"' +
             (poz.ok ? ' style="background:var(--ok-tlo)"' : '') + '>' +
             '<div style="font-size:22px;flex:none;width:26px;text-align:center;color:' +
@@ -6687,10 +6881,17 @@ function zamowienie(param) {
             '<div class="tre"><div class="tyt"' +
               (poz.ok ? ' style="text-decoration:line-through;opacity:.65"' : '') + '>' +
               h(poz.nazwa) + '</div>' +
-            '<div class="pod">' + (poz.produktId ? 'w katalogu' : 'spoza katalogu') +
-              (poz.kiedy ? ' · ' + h(dataGodzPL(poz.kiedy)) : '') + '</div></div>' +
-            '<div class="licz">' + liczba(poz.ilosc) + '<small>szt.</small></div></button>').join('') +
-          '</div>'
+            '<div class="pod">' + (() => {
+              if (!poz.produktId) return 'spoza katalogu — bez kontroli stanu';
+              if (poz.ok) return 'wydane' + (poz.kiedy ? ' · ' + dataGodzPL(poz.kiedy) : '');
+              const d = dost.get(poz.produktId) || 0;
+              return d < poz.ilosc
+                ? '<span style="color:var(--zle);font-weight:600">brakuje ' +
+                  liczba(poz.ilosc - d) + ' szt. — dostępne ' + liczba(d) + '</span>'
+                : 'dostępne ' + liczba(d) + ' szt.';
+            })() + '</div></div>' +
+            '<div class="licz">' + liczba(poz.ilosc) + '<small>szt.</small></div></button>').join('');
+          })() + '</div>'
         : pusto('—', 'To zamówienie nie ma żadnej pozycji.')) +
       (z.dokumentId
         ? '<div class="alert ok"><div><b>Stan zdjęty z magazynu</b>' +
@@ -6700,10 +6901,15 @@ function zamowienie(param) {
           ? '<div class="karta"><p>Ta partia nie zdejmuje stanu magazynowego.</p></div>' : '')),
     po: () => {
       widok().querySelectorAll('[data-i]').forEach(b => b.onclick = async () => {
-        await Zam.przelacz(z, +b.dataset.i);
+        const w = await Zam.przelacz(z, +b.dataset.i);
         odswiez();
+        if (!w.ok && w.braki) pokazBraki(w.braki, 'uzupełnienie przed zamówieniem ' + z.nr);
       });
-      $('#wszystko').onclick = async () => { await Zam.odhaczWszystko(z, true); odswiez(); };
+      $('#wszystko').onclick = async () => {
+        const w = await Zam.odhaczWszystko(z, true);
+        odswiez();
+        if (w.braki.length) pokazBraki(w.braki, 'uzupełnienie przed zamówieniem ' + z.nr);
+      };
       $('#cofnij').onclick = async () => { await Zam.odhaczWszystko(z, false); odswiez(); };
     }
   };
@@ -6944,12 +7150,25 @@ function naglowki() {
 /* ==================================================================
    pola formularzy
    ================================================================== */
+/* Pola liczbowe robimy jako type="text" z klawiaturą numeryczną.
+   Natywne input[type=number] odrzuca przecinek, a polska klawiatura
+   podaje właśnie przecinek — wpisana kwota przepadałaby bez śladu. */
 function pole(id, etykieta, wart, typ, podp) {
+  const liczba = typ === 'number';
   return '<label><span class="et">' + h(etykieta) + '</span>' +
-    '<input id="f-' + id + '" type="' + (typ || 'text') + '"' +
-    (typ === 'number' ? ' inputmode="decimal" step="any"' : '') +
+    '<input id="f-' + id + '" type="' + (liczba ? 'text' : (typ || 'text')) + '"' +
+    (liczba ? ' inputmode="decimal" data-num="1"' : '') +
     ' value="' + h(wart == null ? '' : wart) + '"' +
     (podp ? ' placeholder="' + h(podp) + '"' : '') + '></label>';
+}
+
+/* '18,50' i '1 200' -> 1200 ; puste -> null */
+function naLiczbe(v) {
+  if (v == null) return null;
+  const s = String(v).replace(/\s| /g, '').replace(',', '.').trim();
+  if (s === '') return null;
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
 }
 function poleObszar(id, etykieta, wart) {
   return '<label><span class="et">' + h(etykieta) + '</span>' +
@@ -6970,10 +7189,8 @@ function zbierz(pola) {
   pola.forEach(p => {
     const e = $('#f-' + p);
     if (!e) return;
-    let v = e.value;
-    if (e.type === 'number') v = v === '' ? null : Number(v);
-    else if (typeof v === 'string') v = v.trim();
-    o[p] = v;
+    o[p] = (e.dataset && e.dataset.num) ? naLiczbe(e.value)
+         : (typeof e.value === 'string' ? e.value.trim() : e.value);
   });
   return o;
 }
@@ -7057,10 +7274,17 @@ global.UI = { rysuj, odswiez, toast, modal, zamknijModal, potwierdz, h };
 <script>
 /* ===== js/app.js ===== */
 /* ------------------------------------------------------------------
-   app.js — uruchomienie aplikacji.
+   app.js — uruchomienie aplikacji i obsługa aktualizacji.
    ------------------------------------------------------------------ */
-(function () {
+(function (global) {
 'use strict';
+
+/* Numer wersji — podbijany przy każdym wydaniu.
+   Widać go w Ustawieniach, dzięki czemu da się sprawdzić,
+   czy podmiana pliku na hostingu faktycznie doszła do telefonu. */
+const WERSJA = '8';
+const DATA_WERSJI = '2026-08-18';
+global.WERSJA_APP = WERSJA + ' (' + DATA_WERSJI + ')';
 
 function blad(tekst, szczegol) {
   document.getElementById('widok').innerHTML =
@@ -7070,6 +7294,58 @@ function blad(tekst, szczegol) {
     'Najczęstsza przyczyna to tryb incognito albo zablokowany zapis danych stron. ' +
     'Otwórz aplikację w zwykłym oknie przeglądarki i sprawdź, czy w ustawieniach ' +
     'witryny nie są zablokowane pliki cookie i dane.</p></div>';
+}
+
+/* ---------- pasek „jest nowa wersja” ---------- */
+function pokazPasekAktualizacji(rejestracja) {
+  if (document.getElementById('pasek-akt')) return;
+  const d = document.createElement('div');
+  d.id = 'pasek-akt';
+  d.innerHTML = '<span>Jest nowsza wersja aplikacji.</span>' +
+                '<button type="button">Odśwież teraz</button>';
+  document.body.appendChild(d);
+  d.querySelector('button').onclick = () => {
+    const czekajacy = rejestracja && rejestracja.waiting;
+    if (czekajacy) czekajacy.postMessage('przejmij');
+    setTimeout(() => location.reload(), 300);
+  };
+}
+
+async function obsluzServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  let rej;
+  try { rej = await navigator.serviceWorker.register('sw.js'); }
+  catch (e) { return; }                       // brak pracy offline, ale aplikacja działa
+
+  if (rej.waiting && navigator.serviceWorker.controller) pokazPasekAktualizacji(rej);
+
+  rej.addEventListener('updatefound', () => {
+    const nowy = rej.installing;
+    if (!nowy) return;
+    nowy.addEventListener('statechange', () => {
+      if (nowy.state === 'installed' && navigator.serviceWorker.controller)
+        pokazPasekAktualizacji(rej);
+    });
+  });
+
+  /* przeładowanie po przejęciu kontroli przez nową wersję */
+  let juz = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (juz) return;
+    juz = true;
+    location.reload();
+  });
+
+  /* sprawdzanie raz na godzinę i przy powrocie do aplikacji */
+  const sprawdz = () => rej.update().catch(() => {});
+  setInterval(sprawdz, 60 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) sprawdz();
+  });
+  global.sprawdzAktualizacje = async () => {
+    await rej.update().catch(() => {});
+    return !!rej.waiting;
+  };
 }
 
 async function start() {
@@ -7095,10 +7371,7 @@ async function start() {
   /* silnik skanera przygotowujemy w tle, żeby pierwsze użycie było natychmiastowe */
   Skaner.przygotuj().catch(() => {});
 
-  if ('serviceWorker' in navigator) {
-    try { await navigator.serviceWorker.register('sw.js'); }
-    catch (e) { /* brak pracy offline, ale aplikacja działa */ }
-  }
+  obsluzServiceWorker();
 
   /* ostrzeżenie przy wychodzeniu z niezapisanego dokumentu */
   addEventListener('beforeunload', e => {
@@ -7110,7 +7383,7 @@ if (document.readyState === 'loading')
   document.addEventListener('DOMContentLoaded', start);
 else start();
 
-})();
+})(window);
 
 </script>
 </body>
