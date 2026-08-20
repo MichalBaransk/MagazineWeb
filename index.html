@@ -3072,9 +3072,10 @@ function podsumowanie(lista) {
 /* ---------- zestawienie zbiorcze ----------
    Ile czego zamówiono w całej partii. Część asortymentu chodzi w paczkach:
    kostka biurowa po 2, koperty po 15 — sumę mnożymy, żeby od razu wiedzieć,
-   ile zdjąć z półki. Kolumny opisowe (worki do odkurzacza) mają wpisywane
-   różne odpowiedzi, więc tam liczymy, ile razy padła każda z nich. */
+   ile zdjąć z półki. Osobno liczymy tylko worki do odkurzacza — tam zamiast
+   ilości wpisuje się model, więc trzeba wiedzieć, ile razy padł który. */
 const MNOZNIKI = [['kostka', 2], ['kopert', 15]];
+const WORKI = /wor(ek|ki|kow)|odkurzacz/;
 
 function mnoznik(nazwa) {
   const u = uprosc(nazwa);
@@ -3094,7 +3095,7 @@ function zestawienie(lista) {
       art.set(nazwa, a);
     });
     (z.info || []).forEach(i => {
-      if (!i.v) return;
+      if (!i.v || !WORKI.test(uprosc(i.n))) return;
       const w = opisowe.get(i.n) || new Map();
       w.set(i.v, (w.get(i.v) || 0) + 1);
       opisowe.set(i.n, w);
@@ -3108,10 +3109,7 @@ function zestawienie(lista) {
       a.razem = a.sztuk * a.mnoznik;
       return a;
     }).sort(poNazwie),
-    /* ponytail: kolumna z samymi unikatami to zwykle wpisywane ręcznie uwagi —
-       nie ma czego zliczać. Gdyby odsiewało za dużo, wystarczy zdjąć filtr. */
     opisowe: [...opisowe.entries()]
-      .filter(e => [...e[1].values()].some(n => n > 1))
       .map(e => ({ nazwa: e[0], wartosci: [...e[1].entries()]
         .map(v => ({ v: v[0], ile: v[1] }))
         .sort((a, b) => b.ile - a.ile || String(a.v).localeCompare(String(b.v), 'pl')) }))
@@ -3238,12 +3236,12 @@ function arkusze(partia, lista) {
     sumy: [1, 2, 4, 5, 6]
   };
 
-  /* 5. kolumny opisowe (worki do odkurzacza) — ile razy padła która odpowiedź */
+  /* 5. worki do odkurzacza — ile razy padł który model */
   const opis = zestawienie(lista).opisowe;
-  const wgOdpowiedzi = {
-    nazwa: 'Odpowiedzi',
+  const wgWorkow = {
+    nazwa: 'Worki',
     kolumny: [
-      { n: 'Pytanie', t: 'txt', w: 34 }, { n: 'Odpowiedź', t: 'txt', w: 30 },
+      { n: 'Kolumna', t: 'txt', w: 28 }, { n: 'Model', t: 'txt', w: 30 },
       { n: 'Ile razy', t: 'int', w: 10 }
     ],
     wiersze: opis.reduce((w, o) =>
@@ -3252,7 +3250,7 @@ function arkusze(partia, lista) {
   };
 
   return [szerokie, plaska, zbiorcze, wgArtykulow]
-    .concat(wgOdpowiedzi.wiersze.length ? [wgOdpowiedzi] : []);
+    .concat(wgWorkow.wiersze.length ? [wgWorkow] : []);
 }
 
 global.Zam = {
