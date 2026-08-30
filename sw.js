@@ -1,55 +1,47 @@
-/* Service worker — praca offline. Podbij WERSJA po każdej zmianie plików. */
-const WERSJA = 'magazyn-v1';
-const PLIKI = [
-  './',
-  './index.html',
-  './manifest.webmanifest',
-  './css/style.css',
-  './js/xlsx.js',
-  './js/db.js',
-  './js/skaner.js',
-  './js/etykiety.js',
-  './js/eksport.js',
-  './js/ui.js',
-  './js/app.js',
-  './vendor/zxing.min.js',
-  './vendor/qrcode.min.js',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-512-maskable.png'
-];
+/* Service worker — praca bez internetu.
+   TEN PLIK JEST STAŁY. Nie trzeba go podmieniać przy aktualizacjach aplikacji:
+   nazwa pamięci podręcznej nie zawiera numeru wersji, a pobieranie idzie
+   „najpierw sieć”, więc świeży index.html trafia do telefonu sam.
+   Wgrywasz go raz i zapominasz. */
+const PAMIEC = 'magazyn-1p';
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(WERSJA)
-      .then(c => c.addAll(PLIKI))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil(caches.open(PAMIEC)
+    .then(c => c.addAll(['./', './index.html']))
+    .catch(() => {})
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys()
-      .then(k => Promise.all(k.filter(x => x !== WERSJA).map(x => caches.delete(x))))
-      .then(() => self.clients.claim())
+  e.waitUntil(caches.keys()
+    .then(k => Promise.all(k.filter(x => x !== PAMIEC).map(x => caches.delete(x))))
+    .then(() => self.clients.claim()));
+});
+
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== location.origin) return;
+  e.respondWith(
+    fetch(e.request)
+      .then(odp => {
+        if (odp && odp.status === 200)
+          caches.open(PAMIEC).then(c => c.put(e.request, odp.clone()));
+        return odp;
+      })
+      .catch(() => caches.match(e.request).then(t => t || caches.match('./index.html')))
   );
 });
 
-/* Najpierw pamięć podręczna — aplikacja ma działać bez zasięgu.
-   W tle odświeżamy kopię, żeby kolejne uruchomienie miało nowszą wersję. */
-self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  const url = new URL(e.request.url);
-  if (url.origin !== location.origin) return;
-
-  e.respondWith(
-    caches.match(e.request).then(trafienie => {
-      const zSieci = fetch(e.request).then(odp => {
-        if (odp && odp.status === 200)
-          caches.open(WERSJA).then(c => c.put(e.request, odp.clone()));
-        return odp;
-      }).catch(() => trafienie);
-      return trafienie || zSieci;
-    })
-  );
+/* Stuknięcie w powiadomienie o brakach otwiera „Do domówienia”.
+   Bez tego stuknięcie nic by nie robiło. */
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const cel = (e.notification.data && e.notification.data.url) || '#/stany?f=braki';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(okna => {
+      for (const o of okna) {
+        if (o.url.includes(location.origin)) { o.focus(); return o.navigate(o.url.split('#')[0] + cel); }
+      }
+      return self.clients.openWindow('./' + cel);
+    }).catch(() => {}));
 });
